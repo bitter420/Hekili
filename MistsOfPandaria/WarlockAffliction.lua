@@ -80,10 +80,10 @@ spec:RegisterStateExpr( "tick_time", function()
     return 0
 end )
 
--- Alias numeric soul_shards for APLs that expect a number and ensure key exists early.
-spec:RegisterStateExpr( "soul_shards", function()
-    return ( state.soul_shards and state.soul_shards.current ) or 0
-end )
+-- Alias numeric soul_shards for APLs that expect a number and ensure key -- exists early.
+spec:RegisterStateExpr("actual_soul_shards", function()
+    return UnitPower("player", Enum.PowerType.SoulShards) or 0
+end)
 
 -- Pet management system for Affliction Warlock
 local function summon_demon(demon_type)
@@ -129,12 +129,17 @@ local function get_dot_percent_increase(dot)
     return math.floor((current - last) / last * 100)
 end
 
--- Register state expressions for percent_increase
-for _, dot in ipairs({"agony", "corruption", "unstable_affliction"}) do
-    spec:RegisterStateExpr("dot." .. dot .. ".percent_increase", function()
-        return get_dot_percent_increase(dot)
-    end)
-end
+spec:RegisterStateExpr("corruption_percent_increase", function()
+    return get_dot_percent_increase("corruption")
+end)
+
+spec:RegisterStateExpr("ua_percent_increase", function()
+    return get_dot_percent_increase("unstable_affliction")
+end)
+
+spec:RegisterStateExpr("agony_percent_increase", function()
+    return get_dot_percent_increase("agony")
+end)
 
 -- Alias for wowsims APL: dotPercentIncrease(spellId)
 spec:RegisterStateFunction("dotPercentIncrease", function(spellId)
@@ -211,7 +216,7 @@ end)
 
 -- DoT tick damage tracking for Malefic Grasp and Soul Shard generation
 RegisterAfflictionCombatLogEvent("SPELL_PERIODIC_DAMAGE", function(timestamp, subevent, sourceGUID, sourceName, sourceFlags, sourceRaidFlags, destGUID, destName, destFlags, destRaidFlags, spellID, spellName, spellSchool)
-    if (spellID == 172 or spellID == 30108 or spellID == 980) and state and state.soul_shards then
+if (spellID == 172 or spellID == 30108 or spellID == 980) and (state.actual_soul_shards or 0) > 0 then
         -- Deterministic expected shard gain model: average proc chance converted to fractional value.
         -- Approximate: baseline 2% per tick, criticals double contribution.
         local critical = select(21, CombatLogGetCurrentEventInfo())
@@ -1453,7 +1458,7 @@ spec:RegisterAbilities( {
         
         usable = function()
             if buff.soulburn.up then return false, "soulburn active" end
-            local shards = ( state.soul_shards and state.soul_shards.current ) or 0
+            local shards = ( state.actual_soul_shards and state.actual_soul_shards.current ) or 0
             if shards < 1 then return false, "requires 1 soul shard" end
             return true
         end,
@@ -1530,9 +1535,19 @@ spec:RegisterAbilities( {
 } )
 
 -- State Expressions for Affliction
--- Avoid naming collision with the soul_shards resource table; rely on resource access or the alias below.
-spec:RegisterStateExpr( "soul_shards_deficit", function() return state.soul_shards and ( state.soul_shards.max - state.soul_shards.current ) or 0 end )
-spec:RegisterStateExpr( "current_soul_shards", function() return state.soul_shards and state.soul_shards.current or 0 end )
+-- Avoid naming collision with the soul_shards resource table; rely on direct API access.
+
+local SOUL_SHARDS = Enum.PowerType.SoulShards
+
+spec:RegisterStateExpr("current_soul_shards", function()
+    return UnitPower("player", SOUL_SHARDS) or 0
+end)
+
+spec:RegisterStateExpr("soul_shards_deficit", function()
+    local maxShards = UnitPowerMax("player", SOUL_SHARDS) or 5
+    local currentShards = UnitPower("player", SOUL_SHARDS) or 0
+    return maxShards - currentShards
+end)
 
 -- Minimal safety shims for malformed imports that may reference unit "focus" or bare ticking/remains.
 -- These prevent compiler errors without changing behavior.
