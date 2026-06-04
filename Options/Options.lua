@@ -1175,26 +1175,36 @@ return end
         return tab
     end
 
-    local function rangeXY( info, notif )
-        local tab = getOptionTable( info, notif )
+local function rangeXY( info, notif )
+    local tab = getOptionTable( info, notif )
 
-        local resolution = GetCVar( "gxWindowedResolution" ) or "1280x720"
-        local width, height = resolution:match( "(%d+)x(%d+)" )
+    -- Try all possible resolution CVars used in MoP.
+    local resolution = GetCVar( "gxWindowedResolution" )
+        or GetCVar( "gxFullscreenResolution" )
+        or GetCVar( "gxResolution" )
+        or "1280x720"
 
-        width = tonumber( width )
-        height = tonumber( height )
-
-        tab.args.x.min = -1 * width
-        tab.args.x.max = width
-        tab.args.x.softMin = -1 * width * 0.5
-        tab.args.x.softMax = width * 0.5
-
-        tab.args.y.min = -1 * height
-        tab.args.y.max = height
-        tab.args.y.softMin = -1 * height * 0.5
-        tab.args.y.softMax = height * 0.5
+    -- If the resolution is invalid (auto, empty, nonsense), force fallback.
+    if not resolution or not resolution:match( "%d+x%d+" ) then
+        resolution = "1280x720"
     end
 
+    -- Extract numbers safely.
+    local width, height = resolution:match( "(%d+)x(%d+)" )
+    width = tonumber( width ) or 1280
+    height = tonumber( height ) or 720
+
+    -- Apply to UI ranges.
+    tab.args.x.min = -1 * width
+    tab.args.x.max = width
+    tab.args.x.softMin = -0.5 * width
+    tab.args.x.softMax =  0.5 * width
+
+    tab.args.y.min = -1 * height
+    tab.args.y.max = height
+    tab.args.y.softMin = -0.5 * height
+    tab.args.y.softMax =  0.5 * height
+end
 
     local function setWidth( info, field, condition, if_true, if_false )
         local tab = getOptionTable( info )
@@ -3293,6 +3303,7 @@ return "Position" end,
 return "Position" end,
                             inline = true,
                             order = 2,
+			    width = "full",
                             args = {
                                 x = {
                                     type = "range",
@@ -3304,7 +3315,7 @@ return "Position" end,
                                     max = 512,
                                     step = 1,
 
-                                    width = 1.49,
+                                    width = 1,
                                     order = 1,
                                 },
 
@@ -3318,7 +3329,7 @@ return "Position" end,
                                     max = 384,
                                     step = 1,
 
-                                    width = 1.49,
+                                    width = 1,
                                     order = 2,
                                 },
                             }
